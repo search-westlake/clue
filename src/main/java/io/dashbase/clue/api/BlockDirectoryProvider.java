@@ -28,7 +28,6 @@ public class BlockDirectoryProvider implements DirectoryProvider {
   private static final Path DEFAULT_CACHE_DIR =
       Path.of(System.getProperty("java.io.tmpdir"), "/tmp");
   private static final String DEFAULT_BUCKET = "my-bucket";
-  private static final String DEFAULT_INDEX_PATH = "/";
   private static final boolean DEFAULT_ENABLE_TRACING = false;
 
   @Override
@@ -45,7 +44,6 @@ public class BlockDirectoryProvider implements DirectoryProvider {
     String secretKey = options.getString(OPTION_SECRET_KEY, DEFAULT_SECRET_KEY);
     Path cacheDir = options.getPath(OPTION_CACHE_DIR, DEFAULT_CACHE_DIR);
     String bucket = options.getString(OPTION_BUCKET, DEFAULT_BUCKET);
-    String indexPath = options.getString(OPTION_INDEX_PATH, DEFAULT_INDEX_PATH);
 
     if (!Files.exists(cacheDir)) {
         Files.createDirectories(cacheDir);
@@ -54,6 +52,6 @@ public class BlockDirectoryProvider implements DirectoryProvider {
     var s3Client = new S3Client(threads, region, endpoint, DEFAULT_ENABLE_TRACING, accessKey, secretKey);
     var blockCtx = BlockContext.defaults(cacheDir, s3Client.s3Client);
     BlockService blockService = new BlockService(blockCtx);
-    return BlockDirectory.withoutManifest(blockService, bucket, indexPath, s3Client, cacheDir);
+    return BlockDirectory.withoutManifest(blockService, bucket, location, s3Client, cacheDir);
   }
 }

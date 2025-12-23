@@ -13,4 +13,3 @@ dirBuilder:
     secretKey: "password"
     cacheDir: "/tmp"
     bucket: "poc-data"
-    indexPath: "/"

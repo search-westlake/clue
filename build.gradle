@@ -69,6 +69,8 @@ dependencies {
     implementation "org.apache.lucene:lucene-queries:${luceneVersion}"
     implementation "org.apache.lucene:lucene-queryparser:${luceneVersion}"
     implementation "org.apache.lucene:lucene-facet:${luceneVersion}"
+    // https://mvnrepository.com/artifact/com.github.ben-manes.caffeine/caffeine
+    implementation 'com.github.ben-manes.caffeine:caffeine:3.2.3'
 
     // https://mvnrepository.com/artifact/tools.jackson.core/jackson-databind
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.20.1'
