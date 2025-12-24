@@ -20,6 +20,13 @@ repositories {
     mavenCentral()
     maven { url 'https://oss.sonatype.org/content/repositories/releases' }
     maven { url 'https://repository.apache.org/snapshots/' }
+    maven {
+        url = uri("https://maven.pkg.github.com/searchlake/closesearch")
+        credentials {
+            username = project.findProperty("idias.user") ?: System.getenv("IDIAS_GITHUB_ID")
+            password = project.findProperty("idias.token") ?: System.getenv("IDIAS_GITHUB_TOKEN")
+        }
+    }
 }
 
 java {
@@ -62,6 +69,8 @@ dependencies {
     implementation "org.apache.lucene:lucene-queries:${luceneVersion}"
     implementation "org.apache.lucene:lucene-queryparser:${luceneVersion}"
     implementation "org.apache.lucene:lucene-facet:${luceneVersion}"
+    // https://mvnrepository.com/artifact/com.github.ben-manes.caffeine/caffeine
+    implementation 'com.github.ben-manes.caffeine:caffeine:3.2.3'
 
     // https://mvnrepository.com/artifact/tools.jackson.core/jackson-databind
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.20.1'
@@ -87,6 +96,11 @@ dependencies {
     implementation 'com.sun.xml.bind:jaxb-core:2.3.0'
     implementation 'com.sun.xml.bind:jaxb-impl:2.3.0'
     implementation 'javax.activation:activation:1.1.1'
+
+    implementation "io.idias:idias-block:0.1.0+"
+    implementation "software.amazon.awssdk:sdk-core:2.29.52"
+    implementation "software.amazon.awssdk:s3:2.29.52"
+    implementation "software.amazon.awssdk.crt:aws-crt:0.36.3"
 
     testImplementation 'org.junit.jupiter:junit-jupiter:5.11.0'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
