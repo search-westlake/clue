@@ -237,6 +237,60 @@ madQuery("price", "double", "color_indexed:red")
 closePctIndex()
 ```
 
+### terms-agg.jsh
+OpenSearch-style terms bucket aggregation for SORTED/SORTED_SET doc values.
+See: https://docs.opensearch.org/latest/aggregations/bucket/terms/
+
+```java
+var indexPath = "myidx"
+/open skills/terms-agg.jsh
+
+// Basic terms aggregation (top 10 by count)
+terms("color")
+terms("color", 20)                    // top 20 terms
+terms("color", 20, "term")            // alphabetically sorted
+terms("color", 20, "count", 5)        // minDocCount=5
+
+// With indexed field query filter
+termsQuery("color", "color_indexed:red")
+termsQuery("color", "contents:toyota", 20, "count")
+
+// With numeric doc value range filter
+termsRange("color", "price", "double", 10000, Double.MAX_VALUE)  // price > 10000
+termsRange("color", "year", "long", 2010, 2020)                  // year 2010-2020
+
+// With docid list
+termsDocs("color", new int[]{0, 1, 2, 3, 4, 5})
+termsDocs("color", new int[]{0, 1, 2}, 10, "term")
+
+closeTermsIndex()
+```
+
+**Order options:**
+| Order | Description |
+|-------|-------------|
+| `"count"` | By doc count descending (default) |
+| `"count_asc"` | By doc count ascending |
+| `"term"` | Alphabetically ascending |
+| `"term_desc"` | Alphabetically descending |
+
+**Parameters:**
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `field` | Field with SORTED or SORTED_SET doc values | required |
+| `size` | Max buckets to return | 10 |
+| `order` | Bucket ordering | `"count"` |
+| `minDocCount` | Min docs per bucket | 1 |
+
+**Filtering methods:**
+| Method | Use Case |
+|--------|----------|
+| `termsQuery()` | Filter by indexed text fields (uses QueryParser) |
+| `termsRange()` | Filter by numeric doc value range (for non-indexed numeric fields) |
+| `termsDocs()` | Filter by explicit docId list |
+
+**Note:** Uses ordinal-based counting within segments for efficiency with large document counts (100M+). String lookups only occur for unique terms, not per-document.
+
 ### codec-support.jsh
 Utilities for handling indexes built with custom codecs.
 
