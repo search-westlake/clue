@@ -76,11 +76,21 @@ See: https://docs.opensearch.org/latest/aggregations/metric/sum/
 var indexPath = "myidx"
 /open skills/sum-agg.jsh
 
+// All documents
 sum("mileage")                                  // long field (default)
 sum("price", "double")                          // double field (uses longBitsToDouble)
 sum("price", "double", 0.0)                     // with missing value
 sumWithScript("price", "_value * 100", "double")
-sumWithScript("price", "_value * 100", "double", 0.0)
+
+// Explicit docid list filter
+sumDocs("mileage", new int[]{0, 1, 5, 10, 100})
+sumDocs("price", "double", new int[]{0, 1, 5})
+sumDocsWithScript("price", "_value * 100", "double", new int[]{0, 1})
+
+// Query filter (uses Lucene QueryParser syntax)
+sumQuery("mileage", "color_indexed:red")
+sumQuery("price", "double", "year:[2000 TO *]")
+sumQueryWithScript("price", "_value * 100", "double", "color_indexed:red AND year:>2000")
 
 closeSumIndex()                                 // close when done
 ```
@@ -104,6 +114,20 @@ closeSumIndex()                                 // close when done
 | `type` | Field type: `"long"` (default), `"double"`, `"float"`, `"int"` |
 | `missing` | Default value for documents missing the field |
 | `script` | Expression to transform values (uses `_value` variable) |
+
+**Document filtering:**
+| Method | Description |
+|--------|-------------|
+| `sum()` / `sumWithScript()` | Aggregate over all documents |
+| `sumDocs()` / `sumDocsWithScript()` | Aggregate over explicit docid list |
+| `sumQuery()` / `sumQueryWithScript()` | Aggregate over documents matching a query |
+
+**Query syntax:** Uses Lucene QueryParser with StandardAnalyzer. Examples:
+- `"field:value"` - term query
+- `"field:[min TO max]"` - range query
+- `"field:>100"` - range query (greater than)
+- `"field1:a AND field2:b"` - boolean query
+- `"*"` - match all documents
 
 **Note:** Double/float types use Kahan summation algorithm to maintain precision when summing many floating-point values.
 
