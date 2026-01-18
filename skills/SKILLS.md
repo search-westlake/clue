@@ -291,6 +291,89 @@ closeTermsIndex()
 
 **Note:** Uses ordinal-based counting within segments for efficiency with large document counts (100M+). String lookups only occur for unique terms, not per-document.
 
+### histogram-agg.jsh
+OpenSearch-style histogram bucket aggregation for numeric fields.
+See: https://docs.opensearch.org/latest/aggregations/bucket/histogram/
+
+```java
+var indexPath = "myidx"
+/open skills/histogram-agg.jsh
+
+// Basic histogram (buckets by fixed interval)
+histogram("price", 5000, "double")              // buckets: 0-5000, 5000-10000, ...
+histogram("mileage", 10000)                     // long field
+histogram("price", 5000, "double", 10)          // minDocCount=10
+
+// With filters
+histogramQuery("price", 5000, "double", "color_indexed:red")
+histogramRange("price", 5000, "double", "mileage", "long", 0, 50000)
+histogramDocs("price", 5000, "double", new int[]{0, 1, 2, 3})
+
+closeHistIndex()
+```
+
+### range-agg.jsh
+OpenSearch-style range bucket aggregation for numeric fields.
+See: https://docs.opensearch.org/latest/aggregations/bucket/range/
+
+```java
+var indexPath = "myidx"
+/open skills/range-agg.jsh
+
+// Basic range (custom boundaries)
+range("price", "double", new double[]{0, 5000, 10000, 20000})
+
+// With named buckets
+rangeNamed("price", "double",
+    new String[]{"cheap", "mid", "expensive"},
+    new double[]{0, 5000, 15000})
+
+// With filters
+rangeQuery("price", "double", new double[]{0, 10000, 20000}, "color_indexed:red")
+rangeFilter("price", "double", new double[]{0, 10000}, "mileage", "long", 0, 50000)
+rangeDocs("price", "double", new double[]{0, 10000}, new int[]{0, 1, 2})
+
+closeRangeIndex()
+```
+
+### missing-agg.jsh
+OpenSearch-style missing bucket aggregation.
+See: https://docs.opensearch.org/latest/aggregations/bucket/missing/
+
+```java
+var indexPath = "myidx"
+/open skills/missing-agg.jsh
+
+// Count docs missing a field value
+missing("color")
+missingQuery("color", "year:[2010 TO *]")
+missingDocs("color", new int[]{0, 1, 2, 3, 4})
+
+closeMissIndex()
+```
+
+### filter-agg.jsh
+OpenSearch-style filter bucket aggregations (single and multiple).
+See: https://docs.opensearch.org/latest/aggregations/bucket/filter/
+
+```java
+var indexPath = "myidx"
+/open skills/filter-agg.jsh
+
+// Single filter - count matching docs
+filter("color_indexed:red")
+filter("price:[10000 TO *] AND color_indexed:black")
+
+// Multiple filters - named buckets
+filters(new String[]{"red", "blue", "other"},
+        new String[]{"color_indexed:red", "color_indexed:blue", "*"})
+
+// Multiple filters - auto-named
+filters(new String[]{"color_indexed:red", "color_indexed:blue"})
+
+closeFilterIndex()
+```
+
 ### codec-support.jsh
 Utilities for handling indexes built with custom codecs.
 
