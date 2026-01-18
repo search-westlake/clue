@@ -131,6 +131,112 @@ closeSumIndex()                                 // close when done
 
 **Note:** Double/float types use Kahan summation algorithm to maintain precision when summing many floating-point values.
 
+### stats-agg.jsh
+OpenSearch-style stats aggregations: min, max, valueCount, stats, extendedStats.
+See: https://docs.opensearch.org/latest/aggregations/metric/stats/
+
+```java
+var indexPath = "myidx"
+/open skills/stats-agg.jsh
+
+// Single value aggregations
+min("price", "double")
+max("price", "double")
+valueCount("price")
+
+// Combined stats (count, min, max, avg, sum)
+stats("price", "double")
+
+// Extended stats (+ variance, stdDev, sumOfSquares)
+extendedStats("price", "double")
+
+// With query filter
+statsQuery("price", "double", "color_indexed:red")
+extendedStatsQuery("price", "double", "year:[2010 TO *]")
+
+// With docid list
+statsDocs("price", "double", new int[]{0, 1, 2, 3, 4})
+
+closeStatsIndex()
+```
+
+### weighted-avg-agg.jsh
+OpenSearch-style weighted average aggregation.
+See: https://docs.opensearch.org/latest/aggregations/metric/weighted-avg/
+
+```java
+var indexPath = "myidx"
+/open skills/weighted-avg-agg.jsh
+
+// Weighted average: sum(value * weight) / sum(weight)
+weightedAvg("price", "quantity", "double")
+weightedAvg("price", "quantity", "double", "long")  // different types
+
+// With query filter
+weightedAvgQuery("price", "quantity", "double", "color_indexed:red")
+
+// With docid list
+weightedAvgDocs("price", "quantity", "double", new int[]{0, 1, 2})
+
+closeWavgIndex()
+```
+
+### cardinality-agg.jsh
+OpenSearch-style cardinality aggregation using HyperLogLog algorithm.
+See: https://docs.opensearch.org/latest/aggregations/metric/cardinality/
+
+```java
+var indexPath = "myidx"
+/open skills/cardinality-agg.jsh
+
+// Approximate distinct count
+cardinality("color_indexed")          // default precision (14)
+cardinality("color_indexed", 10)      // custom precision (4-18)
+
+// With query filter
+cardinalityQuery("color_indexed", "year:[2010 TO *]")
+
+closeCardIndex()
+```
+
+**Precision settings:**
+| Precision | Memory | Error Rate |
+|-----------|--------|------------|
+| 10 | ~1KB | ~1.04% |
+| 14 | ~16KB | ~0.81% (default) |
+| 18 | ~256KB | ~0.41% |
+
+### percentile-agg.jsh
+OpenSearch-style percentile aggregations using T-Digest algorithm.
+See: https://docs.opensearch.org/latest/aggregations/metric/percentile/
+
+**Requires t-digest library:**
+```bash
+# Download t-digest JAR
+wget -O plugins/t-digest-3.3.jar https://repo1.maven.org/maven2/com/tdunning/t-digest/3.3/t-digest-3.3.jar
+
+# Start jshell with t-digest on classpath
+jshell --class-path "build/libs/*:plugins/t-digest-3.3.jar"
+```
+
+```java
+var indexPath = "myidx"
+/open skills/percentile-agg.jsh
+
+// Percentiles - values at given percentile ranks
+percentiles("price", "double", new double[]{25, 50, 75, 95, 99})
+percentilesQuery("price", "double", new double[]{50, 99}, "color_indexed:red")
+
+// Percentile Ranks - what percentile is a given value at
+percentileRanks("price", "double", new double[]{5000, 10000, 15000})
+
+// Median Absolute Deviation
+medianAbsoluteDeviation("price", "double")
+madQuery("price", "double", "color_indexed:red")
+
+closePctIndex()
+```
+
 ### codec-support.jsh
 Utilities for handling indexes built with custom codecs.
 
