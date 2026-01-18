@@ -2,11 +2,26 @@
 
 JShell scripts for analyzing Lucene indexes using pure Lucene API.
 
-## Usage
+## Quick Start
+
+```bash
+# Use the launcher script (recommended)
+./skills/clue-jshell.sh              # interactive mode
+./skills/clue-jshell.sh cars         # with index path preset
+
+# Then load skills
+jshell> help()                        # show available skills
+jshell> /open skills/terms-agg.jsh    # load a skill
+```
+
+## Manual Setup
 
 ```bash
 # Start jshell with Lucene on classpath
 jshell --class-path "build/libs/*"
+
+# For percentile skills, include t-digest
+jshell --class-path "build/libs/*:plugins/t-digest-3.3.jar"
 
 # Set index path
 jshell> var indexPath = "/path/to/index"
@@ -14,6 +29,15 @@ jshell> var indexPath = "/path/to/index"
 # Load a skill
 jshell> /open skills/<skill-name>.jsh
 ```
+
+## Configuration Files
+
+| File | Purpose |
+|------|---------|
+| `clue-jshell.sh` | Launcher script with correct classpath |
+| `startup.jsh` | Auto-loaded imports and help() function |
+| `skills-config.json` | Index aliases and default settings |
+| `codec-config.json` | Custom codec JAR mappings (auto-generated) |
 
 ## Available Skills
 
@@ -373,6 +397,95 @@ filters(new String[]{"color_indexed:red", "color_indexed:blue"})
 
 closeFilterIndex()
 ```
+
+### subagg.jsh
+OpenSearch-style bucket + metric sub-aggregations.
+Combines bucket aggregations (terms, histogram, range) with metric aggregations.
+
+**Requires t-digest library:**
+```bash
+jshell --class-path "build/libs/*:plugins/t-digest-3.3.jar"
+```
+
+```java
+var indexPath = "myidx"
+/open skills/subagg.jsh
+
+// Terms + Metric (group by color, compute metric on price)
+termsBy("color", "price", "double", "p95", 10)      // top 10 by 95th percentile
+termsBy("color", "price", "double", "avg", 5)       // top 5 by average
+termsBy("color", "mileage", "long", "max", 3)       // top 3 by max mileage
+termsBy("color", "price", "double", "p95", 10, "key")  // sort by color name
+
+// Histogram + Metric (bucket by price interval, compute metric on mileage)
+histogramBy("price", 5000, "double", "mileage", "long", "avg")
+histogramBy("year", 1, "long", "price", "double", "p50")
+
+// Range + Metric (custom price ranges, compute metric on mileage)
+rangeBy("price", "double", new double[]{0, 10000, 20000}, "mileage", "long", "avg")
+rangeBy("price", "double", new double[]{0, 10000, 20000},
+        new String[]{"budget", "mid", "luxury"}, "mileage", "long", "p50")
+
+closeSubIndex()
+```
+
+**Supported metrics:**
+| Metric | Description |
+|--------|-------------|
+| `p50`, `median` | 50th percentile |
+| `p75`, `p90`, `p95`, `p99` | Other percentiles |
+| `min`, `max` | Minimum/maximum value |
+| `avg` | Average value |
+| `sum` | Sum of values |
+| `count` | Document count |
+
+**Sort options:** `"metric"` (default, descending) or `"key"` (bucket key)
+
+### nested-agg.jsh
+OpenSearch-style nested bucket aggregations (two levels of buckets + metric).
+Combines histogram, terms, or range bucket aggregations with inner terms or histogram buckets.
+
+**Requires t-digest library:**
+```bash
+jshell --class-path "build/libs/*:plugins/t-digest-3.3.jar"
+```
+
+```java
+var indexPath = "myidx"
+/open skills/nested-agg.jsh
+
+// Histogram -> Terms -> Metric (by year, top colors by p90 price)
+histogramTermsBy("year", 1, "long", "color", "price", "double", "p90", 5)
+histogramTermsBy("year", 1, "long", "color", "price", "double", "p90", 5, "key")  // sort inner by term
+
+// Terms -> Terms -> Metric (by make, top colors by avg price)
+termsTermsBy("make", "color", "price", "double", "avg", 5, 3)
+termsTermsBy("make", "color", "price", "double", "avg", 5, 3, "count", "metric")
+
+// Range -> Terms -> Metric (price ranges, top colors by avg mileage)
+rangeTermsBy("price", "double", new double[]{0, 10000, 20000}, "color", "mileage", "long", "avg", 5)
+rangeTermsBy("price", "double", new double[]{0, 10000, 20000},
+             new String[]{"budget", "mid", "luxury"}, "color", "mileage", "long", "p50", 5)
+
+// Terms -> Histogram -> Metric (by color, yearly avg price)
+termsHistogramBy("color", "year", 1, "long", "price", "double", "avg", 5)
+
+closeNestedIndex()
+```
+
+**Supported patterns:**
+| Pattern | Description |
+|---------|-------------|
+| `histogramTermsBy()` | Numeric intervals → categorical terms → metric |
+| `termsTermsBy()` | Categorical → categorical → metric |
+| `rangeTermsBy()` | Custom ranges → categorical terms → metric |
+| `termsHistogramBy()` | Categorical → numeric intervals → metric |
+
+**Supported metrics:** `p50`, `p75`, `p90`, `p95`, `p99`, `min`, `max`, `avg`, `sum`, `count`
+
+**Sort options:**
+- Outer buckets: `"count"` (default) or `"key"`/`"term"`
+- Inner buckets: `"metric"` (default) or `"key"`/`"term"`
 
 ### codec-support.jsh
 Utilities for handling indexes built with custom codecs.
