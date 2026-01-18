@@ -366,18 +366,76 @@ void madQuery(String field, String type, String query) throws Exception {
     System.out.println("=".repeat(40));
 }
 
+void madDocs(String field, String type, int[] docIds) throws Exception {
+    TDigest digest = _buildDigestWithDocs(field, type, 100, docIds);
+    double median = digest.quantile(0.5);
+
+    // Second pass for deviations with same docid list
+    int[] sortedDocIds = docIds.clone();
+    Arrays.sort(sortedDocIds);
+    int docIdIndex = 0;
+
+    TDigest madDigest = new MergingDigest(100);
+
+    for (LeafReaderContext leaf : _pctReader.leaves()) {
+        LeafReader reader = leaf.reader();
+        int docBase = leaf.docBase;
+        int maxDoc = reader.maxDoc();
+
+        while (docIdIndex < sortedDocIds.length && sortedDocIds[docIdIndex] < docBase) {
+            docIdIndex++;
+        }
+        if (docIdIndex >= sortedDocIds.length) break;
+
+        NumericDocValues ndv = reader.getNumericDocValues(field);
+
+        while (docIdIndex < sortedDocIds.length) {
+            int globalDocId = sortedDocIds[docIdIndex];
+            if (globalDocId >= docBase + maxDoc) break;
+
+            int localDocId = globalDocId - docBase;
+            if (reader.getLiveDocs() != null && !reader.getLiveDocs().get(localDocId)) {
+                docIdIndex++;
+                continue;
+            }
+
+            if (ndv != null && ndv.advanceExact(localDocId)) {
+                double value = _convertValuePct(ndv.longValue(), type);
+                madDigest.add(Math.abs(value - median));
+            }
+            docIdIndex++;
+        }
+    }
+
+    double mad = madDigest.quantile(0.5);
+
+    System.out.println();
+    System.out.println("Median Absolute Deviation (" + docIds.length + " docs): " + field);
+    System.out.println("=".repeat(40));
+    System.out.println("Field:        " + field);
+    System.out.println("Type:         " + type);
+    System.out.println("Count:        " + (long) digest.size());
+    System.out.println("-".repeat(40));
+    System.out.println("Median:       " + median);
+    System.out.println("MAD:          " + mad);
+    System.out.println("=".repeat(40));
+}
+
 System.out.println("Loaded percentile-agg skill (T-Digest percentile aggregations)");
 System.out.println();
 System.out.println("Percentiles (values at given percentile ranks):");
 System.out.println("  percentiles(\"field\", \"double\", new double[]{25, 50, 75, 95, 99})");
 System.out.println("  percentilesQuery(\"field\", \"double\", new double[]{50}, \"query\")");
+System.out.println("  percentilesDocs(\"field\", \"double\", new double[]{50}, new int[]{...})");
 System.out.println();
 System.out.println("Percentile Ranks (what percentile is a value at):");
 System.out.println("  percentileRanks(\"field\", \"double\", new double[]{5000, 10000})");
 System.out.println("  percentileRanksQuery(\"field\", \"double\", new double[]{10000}, \"query\")");
+System.out.println("  percentileRanksDocs(\"field\", \"double\", new double[]{10000}, new int[]{...})");
 System.out.println();
 System.out.println("Median Absolute Deviation:");
 System.out.println("  medianAbsoluteDeviation(\"field\", \"double\")");
 System.out.println("  madQuery(\"field\", \"double\", \"query\")");
+System.out.println("  madDocs(\"field\", \"double\", new int[]{...})");
 System.out.println();
 System.out.println("  closePctIndex() - close when done");

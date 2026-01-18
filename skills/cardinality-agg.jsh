@@ -436,6 +436,119 @@ void _cardinalityWithQuery(String field, int precision, String queryStr) throws 
     System.out.println("=".repeat(40));
 }
 
+// Cardinality with docid list
+void _cardinalityWithDocs(String field, int precision, int[] docIds) throws Exception {
+    _openCardIndex();
+
+    HyperLogLog hll = new HyperLogLog(precision);
+
+    int[] sortedDocIds = docIds.clone();
+    Arrays.sort(sortedDocIds);
+    int docIdIndex = 0;
+    long valuesProcessed = 0;
+
+    for (LeafReaderContext leaf : _cardReader.leaves()) {
+        LeafReader reader = leaf.reader();
+        int docBase = leaf.docBase;
+        int maxDoc = reader.maxDoc();
+
+        while (docIdIndex < sortedDocIds.length && sortedDocIds[docIdIndex] < docBase) {
+            docIdIndex++;
+        }
+        if (docIdIndex >= sortedDocIds.length) break;
+
+        FieldInfo finfo = reader.getFieldInfos().fieldInfo(field);
+        if (finfo == null) continue;
+
+        DocValuesType dvType = finfo.getDocValuesType();
+
+        if (dvType == DocValuesType.NONE) {
+            System.out.println("Warning: field '" + field + "' has no doc values - cardinalityDocs requires doc values");
+            System.out.println("Use cardinality() or cardinalityQuery() instead for indexed-only fields");
+            return;
+        }
+
+        // Get doc values once per segment
+        SortedDocValues sdv = (dvType == DocValuesType.SORTED) ? reader.getSortedDocValues(field) : null;
+        SortedSetDocValues ssdv = (dvType == DocValuesType.SORTED_SET) ? reader.getSortedSetDocValues(field) : null;
+        NumericDocValues ndv = (dvType == DocValuesType.NUMERIC) ? reader.getNumericDocValues(field) : null;
+        SortedNumericDocValues sndv = (dvType == DocValuesType.SORTED_NUMERIC) ? reader.getSortedNumericDocValues(field) : null;
+        BinaryDocValues bdv = (dvType == DocValuesType.BINARY) ? reader.getBinaryDocValues(field) : null;
+
+        while (docIdIndex < sortedDocIds.length) {
+            int globalDocId = sortedDocIds[docIdIndex];
+            if (globalDocId >= docBase + maxDoc) break;
+
+            int localDocId = globalDocId - docBase;
+            if (reader.getLiveDocs() != null && !reader.getLiveDocs().get(localDocId)) {
+                docIdIndex++;
+                continue;
+            }
+
+            switch (dvType) {
+                case SORTED:
+                    if (sdv != null && sdv.advanceExact(localDocId)) {
+                        BytesRef term = sdv.lookupOrd(sdv.ordValue());
+                        hll.add(Arrays.copyOfRange(term.bytes, term.offset, term.offset + term.length));
+                        valuesProcessed++;
+                    }
+                    break;
+
+                case SORTED_SET:
+                    if (ssdv != null && ssdv.advanceExact(localDocId)) {
+                        for (int i = 0; i < ssdv.docValueCount(); i++) {
+                            long ord = ssdv.nextOrd();
+                            BytesRef term = ssdv.lookupOrd(ord);
+                            hll.add(Arrays.copyOfRange(term.bytes, term.offset, term.offset + term.length));
+                            valuesProcessed++;
+                        }
+                    }
+                    break;
+
+                case NUMERIC:
+                    if (ndv != null && ndv.advanceExact(localDocId)) {
+                        hll.add(ndv.longValue());
+                        valuesProcessed++;
+                    }
+                    break;
+
+                case SORTED_NUMERIC:
+                    if (sndv != null && sndv.advanceExact(localDocId)) {
+                        for (int i = 0; i < sndv.docValueCount(); i++) {
+                            hll.add(sndv.nextValue());
+                            valuesProcessed++;
+                        }
+                    }
+                    break;
+
+                case BINARY:
+                    if (bdv != null && bdv.advanceExact(localDocId)) {
+                        BytesRef val = bdv.binaryValue();
+                        hll.add(Arrays.copyOfRange(val.bytes, val.offset, val.offset + val.length));
+                        valuesProcessed++;
+                    }
+                    break;
+
+                default:
+                    break;
+            }
+            docIdIndex++;
+        }
+    }
+
+    long estimate = hll.estimate();
+
+    System.out.println();
+    System.out.println("Cardinality Aggregation (" + docIds.length + " docs): " + field);
+    System.out.println("=".repeat(40));
+    System.out.println("Field:        " + field);
+    System.out.println("Precision:    " + precision);
+    System.out.println("Values:       " + valuesProcessed + " processed");
+    System.out.println("-".repeat(40));
+    System.out.println("Cardinality:  ~" + estimate + " (approximate)");
+    System.out.println("=".repeat(40));
+}
+
 // === Public API ===
 
 void cardinality(String field) throws Exception {
@@ -454,12 +567,21 @@ void cardinalityQuery(String field, int precision, String query) throws Exceptio
     _cardinalityWithQuery(field, precision, query);
 }
 
+void cardinalityDocs(String field, int[] docIds) throws Exception {
+    _cardinalityWithDocs(field, 14, docIds);
+}
+
+void cardinalityDocs(String field, int precision, int[] docIds) throws Exception {
+    _cardinalityWithDocs(field, precision, docIds);
+}
+
 System.out.println("Loaded cardinality-agg skill (HyperLogLog approximate distinct count)");
 System.out.println();
 System.out.println("Usage:");
 System.out.println("  cardinality(\"field\")              - default precision (14)");
 System.out.println("  cardinality(\"field\", 10)          - custom precision (4-18)");
 System.out.println("  cardinalityQuery(\"field\", \"query\")");
+System.out.println("  cardinalityDocs(\"field\", new int[]{...})");
 System.out.println();
 System.out.println("Precision: higher = more accurate but more memory");
 System.out.println("  10 = ~1KB,  error ~1.04%");
