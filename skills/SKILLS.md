@@ -227,6 +227,155 @@ Terms dictionary entry:
   termsDataLength: 46
 ```
 
+### io-metadata.jsh
+Generate comprehensive index metadata with exact byte offsets. This reads the index ONCE and produces a JSON file that can be used for I/O planning without touching the index again.
+
+```java
+var indexPath = "myidx"
+/open skills/io-metadata.jsh
+
+generateIOMetadata()    // Generates io-metadata.json
+```
+
+**Output: io-metadata.json**
+```json
+{
+  "indexPath": "myidx",
+  "generatedAt": "2025-01-20T21:01:54.603150Z",
+  "totalDocs": 15000,
+  "segments": [{
+    "name": "_0",
+    "docCount": 15000
+  }],
+  "compoundFile": {
+    "_0.cfs": {
+      ".tim": {"offset": 6416, "length": 10230},
+      ".dvd": {"offset": 1163056, "length": 5172821}
+    }
+  },
+  "indexedFields": {
+    "color_indexed": {
+      "termCount": 8,
+      "terms": {
+        "red": {"docFreq": 2160, "docStartFP": 34636, "length": 1996},
+        "blue": {"docFreq": 1104, "docStartFP": 36632, "length": 1020}
+      }
+    }
+  },
+  "docValueFields": {
+    "price": {
+      "type": "NUMERIC",
+      "dataOffset": 1163113,
+      "dataLength": 15000
+    },
+    "color": {
+      "type": "SORTED",
+      "ordinalsOffset": 1307985,
+      "ordinalsLength": 7500,
+      "termsOffset": 1315485,
+      "termsLength": 46
+    }
+  },
+  "storedFields": {
+    "chunks": [
+      {"firstDoc": 0, "offset": 161678, "length": 12785},
+      {"firstDoc": 1024, "offset": 174463, "length": 12800}
+    ]
+  }
+}
+```
+
+### io-planner-v2.jsh
+Analyze I/O requirements using pre-generated metadata. This NEVER reads from the index - all data comes from `io-metadata.json`.
+
+**Two-phase workflow:**
+1. Generate metadata once: `/open skills/io-metadata.jsh && generateIOMetadata()`
+2. Plan I/O using metadata: `/open skills/io-planner-v2.jsh`
+
+```java
+/open skills/io-planner-v2.jsh
+
+loadIOMetadata("io-metadata.json")    // Load pre-generated metadata
+
+// List available fields and terms
+listFields()                          // Show all indexed and docvalue fields
+listTerms("color_indexed")            // Show terms for a field
+
+// Plan operations (no index I/O!)
+planSum("price")                      // SUM aggregation
+planAvg("price")                      // AVG aggregation
+planTermQuery("color_indexed", "red") // Term query
+planRangeQuery("price", 7000, 12000)  // Numeric range query
+planTermsAgg("color")                 // Terms aggregation
+planGetDoc(500)                       // Stored fields retrieval
+```
+
+**Example Output:**
+```
+================================================================================
+I/O PLAN: TermQuery(color_indexed:red)
+================================================================================
+
+#    File         Component                    Offset       Length  Purpose
+--------------------------------------------------------------------------------
+1    _0.cfs       .tip                            760          192  Term index
+2    _0.cfs       .tim (block)                  7,469           85  Term dictionary block
+3    _0.cfs       .doc (postings)             895,428        1,996  Posting list (2160 docs)
+--------------------------------------------------------------------------------
+TOTAL: 2,273 bytes (3 blocks)
+
+JSON:
+[
+  {"file": "_0.cfs", "component": ".tip", "offset": 760, "length": 192},
+  {"file": "_0.cfs", "component": ".tim (block)", "offset": 7469, "length": 85},
+  {"file": "_0.cfs", "component": ".doc (postings)", "offset": 895428, "length": 1996}
+]
+docFreq: 2160
+```
+
+**Supported Operations:**
+
+| Operation | I/O Pattern | Files Read |
+|-----------|-------------|------------|
+| `planSum/planAvg` | DocValues scan | .dvm + .dvd |
+| `planTermQuery` | Inverted index | .tip + .tim + .doc |
+| `planRangeQuery` | DocValues scan | .dvm + .dvd |
+| `planTermsAgg` | DocValues scan | .dvm + .dvd (ordinals + terms) |
+| `planGetDoc` | Stored fields | .fdx + .fdm + .fdt (chunk) |
+
+**Key Features:**
+- **No index I/O during planning**: All data from pre-generated JSON
+- **Exact offsets**: No estimates, all values are precise byte positions
+- **Warnings for missing data**: If metadata is incomplete, logs what's missing
+
+### io-planner.jsh (Legacy)
+Original I/O planner that reads from the index during planning. **Superseded by io-planner-v2.jsh** which uses pre-generated metadata.
+
+```java
+var indexPath = "myidx"
+/open skills/io-planner.jsh
+
+// Aggregations - shows I/O plan then executes
+planSum("price")                        // SUM aggregation
+planAvg("price")                        // AVG aggregation
+planTermsAgg("color")                   // Terms aggregation (bucket)
+
+// Queries - shows I/O plan then executes
+planTermQuery("color_indexed", "red")   // Term query
+planRangeQuery("price", 7000, 12000)    // Numeric range query
+
+// Document retrieval
+planGetDoc(5000)                        // Stored fields for doc 5000
+
+closeIOPlanner()
+```
+
+**Use Cases:**
+- Understanding Lucene I/O patterns for different query types
+- Capacity planning and I/O optimization
+- Debugging slow queries by examining data access patterns
+- Educational: see exactly how Lucene resolves queries to file blocks
+
 ### sum-agg.jsh
 OpenSearch-style sum aggregation for numeric fields.
 See: https://docs.opensearch.org/latest/aggregations/metric/sum/
