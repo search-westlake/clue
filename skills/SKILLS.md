@@ -123,6 +123,110 @@ Useful for:
 - Detecting mixed-codec indexes (different segments with different codecs)
 - Debugging codec compatibility issues
 
+### index-analysis.jsh
+Unified interface for comprehensive index file analysis. Generates metadata with exact byte offsets.
+
+```java
+var indexPath = "myidx"
+/open skills/index-analysis.jsh
+
+analyzeIndex()           // Print index summary, files, and fields
+generateMeta()           // Generate index-meta.json with file offsets
+fieldFiles("color")      // Show which files contain a field
+closeAnalysis()
+```
+
+**Output: index-meta.json**
+```json
+{
+  "indexPath": "myidx",
+  "codec": "Lucene101",
+  "segments": [{
+    "name": "_0",
+    "compoundEntries": [
+      {"file": ".tim", "offset": 6416, "length": 10230},
+      {"file": ".dvd", "offset": 1163056, "length": 5172821}
+    ]
+  }],
+  "fields": [{"name": "color", "indexed": false, "docValuesType": "SORTED"}]
+}
+```
+
+### compound-files.jsh
+Parse compound files (.cfe/.cfs) to extract embedded file offsets.
+
+```java
+var indexPath = "myidx"
+/open skills/compound-files.jsh
+
+listSegments()              // List all segments
+compoundEntries("_0")       // Show files embedded in _0.cfs
+compoundEntriesJson("_0")   // Same as JSON
+closeCompoundIndex()
+```
+
+**Output:**
+```
+Compound file: _0.cfs (6335893 bytes)
+File                                         Offset          Length
+----------------------------------------------------------------------
+.fdx                                             48             114
+_Lucene101_0.tim                               6416           10230
+_Lucene90_0.dvd                             1163056         5172821
+```
+
+### term-offsets.jsh
+Extract term and posting byte offsets using reflection on internal Lucene state.
+
+```java
+var indexPath = "myidx"
+/open skills/term-offsets.jsh
+
+termOffset("color_indexed", "red")       // Show term location info
+termOffsetJson("color_indexed", "red")   // Same as JSON
+postingOffset("color_indexed", "red")    // Show posting file info
+closeTermIndex()
+```
+
+**Output:**
+```json
+{
+  "term": "color_indexed:red",
+  "docFreq": 2160,
+  "locations": {
+    "term": {"file": ".tim", "offset": 1053, "length": 85},
+    "postings": {"file": ".doc", "offset": 34636}
+  }
+}
+```
+
+### docvalue-offsets.jsh
+Extract docvalue file offsets for fields with SORTED, NUMERIC, or other docvalue types.
+
+```java
+var indexPath = "myidx"
+/open skills/docvalue-offsets.jsh
+
+listDocValueFields()              // List fields with docvalues
+docValueOffset("color")           // Show docvalue location info
+docValueOffsetJson("color")       // Same as JSON
+closeDocValueIndex()
+```
+
+**Output:**
+```
+Field: color
+DocValuesType: SORTED
+
+Ordinals entry:
+  valuesOffset: 144929
+  valuesLength: 7500
+
+Terms dictionary entry:
+  termsDataOffset: 152429
+  termsDataLength: 46
+```
+
 ### sum-agg.jsh
 OpenSearch-style sum aggregation for numeric fields.
 See: https://docs.opensearch.org/latest/aggregations/metric/sum/
