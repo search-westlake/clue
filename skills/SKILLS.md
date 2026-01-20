@@ -92,6 +92,37 @@ closeDocIndex()            // close when done
 - For binary data: attempts UTF-8 decode, falls back to base64
 - Handles all docvalue types: NUMERIC, BINARY, SORTED, SORTED_SET, SORTED_NUMERIC
 
+### codec-info.jsh
+Extract codec name and class name from all segments in a Lucene index.
+
+```java
+var indexPath = "myidx"
+/open skills/codec-info.jsh
+
+codecInfo()                // show codec info for all segments
+closeCodecIndex()          // close when done
+```
+
+**Output:**
+```
+Reading index: myidx
+Segments: 3
+
+Segment: _0
+  Codec name:  Lucene912
+  Codec class: org.apache.lucene.codecs.lucene912.Lucene912Codec
+
+Summary:
+  Total segments: 3
+  Unique codecs: 1
+  - Lucene912 (org.apache.lucene.codecs.lucene912.Lucene912Codec): 3 segment(s)
+```
+
+Useful for:
+- Identifying which Lucene codec version was used to write the index
+- Detecting mixed-codec indexes (different segments with different codecs)
+- Debugging codec compatibility issues
+
 ### sum-agg.jsh
 OpenSearch-style sum aggregation for numeric fields.
 See: https://docs.opensearch.org/latest/aggregations/metric/sum/
